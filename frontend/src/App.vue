@@ -142,8 +142,8 @@ const SOURCE_ORDER = ['gtfs', 'tgv', 'ter', 'intercites', 'gares', 'communes']
       <section class="hero">
         <div class="hero-bg" role="img" aria-label="TGV Duplex sur le viaduc de Cize-Bolozon, au-dessus de l'Ain" />
         <div class="hero-inner page mx-auto">
-          <h1 class="hero-title">Votre trajet quotidien, en un coup d'œil</h1>
-          <p class="hero-sub">Trains directs et ponctualité réelle, d'après l'open data SNCF</p>
+          <h1 class="hero-title">Votre trajet, en un coup d'œil</h1>
+          <p class="hero-sub">Trains directs et ponctualité réelle.</p>
         </div>
         <a
           class="hero-credit"
@@ -263,28 +263,7 @@ const SOURCE_ORDER = ['gtfs', 'tgv', 'ter', 'intercites', 'gares', 'communes']
 
     <v-footer border class="text-caption text-medium-emphasis d-block py-4">
       <div class="page mx-auto">
-        <!-- <p class="mb-1">
-          Données : <strong>SNCF Voyageurs</strong> et <strong>SNCF Gares &amp; Connexions</strong>
-          (<a href="https://ressources.data.sncf.com" target="_blank" rel="noopener">ressources.data.sncf.com</a>),
-          sous licence <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL</a> ;
-          communes : geo.api.gouv.fr (Licence Ouverte 2.0). Horaires théoriques, sans prise en compte du temps réel.
-          Photo du bandeau : <a href="https://commons.wikimedia.org/wiki/File:SNCF_TGV_Duplex_Viaduc_de_Cize_-_Bolozon.jpg" target="_blank" rel="noopener">Kabelleger / David Gubler</a>,
-          <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a>, recadrée.
-        </p> -->
-        <p v-if="m" class="mb-0">
-          <template v-for="k in SOURCE_ORDER" :key="k">
-            <span v-if="m.sources[k]" class="mr-3 d-inline-block">
-              <a v-if="m.sources[k].page" :href="m.sources[k].page" target="_blank" rel="noopener">{{ m.sources[k].title }}</a>
-              <span v-else>{{ m.sources[k].title }}</span>
-              <template v-if="m.sources[k].modified"> · mis à jour le {{ dateLabel(m.sources[k].modified) }}</template>
-            </span>
-          </template>
-          <!-- <span class="d-inline-block">
-            Régularité : TGV jusqu'à {{ monthLabel(m.regularity_last_month?.TGV) }},
-            TER jusqu'à {{ monthLabel(m.regularity_last_month?.TER) }},
-            Intercités jusqu'à {{ monthLabel(m.regularity_last_month?.IC) }}.
-          </span> -->
-        </p>
+        
       </div>
     </v-footer>
   </v-app>
