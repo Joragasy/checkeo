@@ -1,0 +1,17 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
+StopArea:OCE87000011,Alpha Nord,50.0,3.0,1,
+StopArea:OCE87000029,Alpha Sud,50.01,3.01,1,
+StopArea:OCE87000037,Beta Centre,48.8,2.3,1,
+StopArea:OCE87000045,Beta Est,48.81,2.31,1,
+StopArea:OCE87000052,Gamma,49.5,2.5,1,
+StopArea:OCE87000060,Zeta,51.0,4.0,1,
+StopPoint:OCETGV INOUI-87000011,Alpha Nord,50.0,3.0,0,StopArea:OCE87000011
+StopPoint:OCETrain TER-87000011,Alpha Nord,50.0,3.0,0,StopArea:OCE87000011
+StopPoint:OCECar TER-87000011,Alpha Nord,50.0,3.0,0,StopArea:OCE87000011
+StopPoint:OCETGV INOUI-87000029,Alpha Sud,50.01,3.01,0,StopArea:OCE87000029
+StopPoint:OCETGV INOUI-87000037,Beta Centre,48.8,2.3,0,StopArea:OCE87000037
+StopPoint:OCETGV INOUI-87000045,Beta Est,48.81,2.31,0,StopArea:OCE87000045
+StopPoint:OCETrain TER-87000045,Beta Est,48.81,2.31,0,StopArea:OCE87000045
+StopPoint:OCECar TER-87000045,Beta Est,48.81,2.31,0,StopArea:OCE87000045
+StopPoint:OCETrain TER-87000052,Gamma,49.5,2.5,0,StopArea:OCE87000052
+StopPoint:OCETrain TER-87000060,Zeta,51.0,4.0,0,StopArea:OCE87000060

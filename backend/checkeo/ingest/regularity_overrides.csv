@@ -1,0 +1,14 @@
+label,codes
+# Rapprochement manuel des libellés des jeux de régularité avec les gares du GTFS.
+# codes : codes UIC (8 chiffres) ou code INSEE de commune (5 chiffres), séparés par « ; ».
+# Non rapprochés volontairement (pas de gare identifiable dans le GTFS) : ZURICH, MADRID, ITALIE.
+BOULOGNE-VILLE,87317586
+BELLEGARDE (AIN),87745000
+DIJON VILLE,87713040
+GENEVE,85010082
+LA ROCHELLE VILLE,87485003
+LE CREUSOT MONTCEAU MONTCHANIN,87694109
+MULHOUSE VILLE,87182063
+PARIS MONTPARNASSE,87391003
+VALENCE ALIXAN TGV,87763029
+BARCELONA,71718010

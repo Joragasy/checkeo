@@ -1,0 +1,4 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+R_TGV,SNCF,,Alpha - Beta,2
+R_TER,SNCF,K1,Alpha - Beta TER,2
+R_CAR,SNCF,C1,Alpha - Beta car,3
