@@ -56,6 +56,25 @@ rapprocher d'une gare. Pour corriger un rapprochement, complétez
 
 Variables d'environnement : `CHECKEO_DATA_DIR`, `CHECKEO_DB`, `CHECKEO_CORS`.
 
+## Inspecter les données
+
+```bash
+cd backend
+uv run python -m checkeo.ui          # http://localhost:4213, lecture seule
+```
+
+Ouvre `data/checkeo.duckdb` dans l'[interface web DuckDB](https://duckdb.org/docs/stable/core_extensions/ui)
+(extension `ui`, téléchargée au premier lancement). En lecture seule, elle peut tourner en même
+temps que l'API. Ctrl+C pour arrêter.
+
+| Option | Effet |
+|---|---|
+| `--db chemin.duckdb` | base à ouvrir (défaut : `CHECKEO_DB`) |
+| `--port 4213` | port local de l'interface |
+| `--write` | ouvre la base en écriture |
+
+Avec la CLI DuckDB installée, `duckdb -ui data/checkeo.duckdb` fait la même chose.
+
 ## Lancer l'application
 
 **Développement** (deux terminaux) :
@@ -202,6 +221,7 @@ backend/checkeo/
   core/     logique pure, testée : horaires GTFS, calendriers, trajets directs, jour type,
             indicateurs, fiabilité
   service.py  requêtes DuckDB et assemblage d'un profil
+  ui.py     lancement de l'interface web DuckDB sur la base
   api/      FastAPI
 frontend/src/  Vue 3 + Vuetify 3 + ECharts
 ```
