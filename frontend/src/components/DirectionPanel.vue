@@ -166,7 +166,7 @@ const daysLabel = (t: TrainRow) => `${t.n_days}/${counts.value.n_dates} j.`
       </v-expansion-panel>
     </v-expansion-panels>
 
-    <ReliabilityCard v-for="(b, i) in data.reliability" :key="`${b.family}-${i}`" :block="b" />
+    <!-- <ReliabilityCard v-for="(b, i) in data.reliability" :key="`${b.family}-${i}`" :block="b" /> -->
   </section>
 </template>
 
