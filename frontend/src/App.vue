@@ -130,7 +130,7 @@ const SOURCE_ORDER = ['gtfs', 'tgv', 'ter', 'intercites', 'gares', 'communes']
         <img src="/favicon.svg" alt="" width="28" height="28" class="ml-2" />
       </template>
       <v-app-bar-title class="font-weight-bold">Checkeo</v-app-bar-title>
-      <span class="text-body-2 text-medium-emphasis d-none d-sm-inline mr-2">Profil navetteur en train</span>
+      <span class="text-body-2 text-medium-emphasis d-none d-sm-inline mr-2"></span>
       <v-btn
         :icon="isDark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
         :aria-label="isDark ? 'Passer en mode clair' : 'Passer en mode sombre'"
