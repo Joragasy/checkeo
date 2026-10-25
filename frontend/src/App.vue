@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useDisplay, useTheme } from 'vuetify'
 import { fetchMeta, fetchProfile, type DayType, type Meta, type Profile, type StationHit } from './api'
-import { dateLabel, monthLabel } from './format'
+import { dateLabel } from './format'
 import DirectionPanel from './components/DirectionPanel.vue'
 import StationAutocomplete from './components/StationAutocomplete.vue'
 

@@ -1,0 +1,9 @@
+.git
+data
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+frontend/dist
+*.duckdb
+*.duckdb.wal

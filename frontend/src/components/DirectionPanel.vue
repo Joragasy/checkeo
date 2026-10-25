@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import type { DirectionProfile, TrainRow } from '../api'
 import { duration, hLabel } from '../format'
 import HourHistogram from './HourHistogram.vue'
-import ReliabilityCard from './ReliabilityCard.vue'
 
 const props = defineProps<{
   title: string
@@ -21,7 +20,6 @@ const variability = computed(() => {
   return `${c.min} à ${c.max} selon les jours`
 })
 
-const target = computed(() => (props.isOutbound ? props.data.arrive_by : props.data.leave_after)!)
 const peakLabel = computed(() => {
   const [a, b] = props.data.peak.window
   return `Pointe ${hLabel(a)}–${hLabel(b)}`

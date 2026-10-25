@@ -91,6 +91,32 @@ le frontend compilé (`frontend/dist`) à la racine `/` :
 cd backend && uv run uvicorn checkeo.api.main:app --host 0.0.0.0 --port 8000
 ```
 
+## Déploiement Nomad
+
+Trois jobs, une image chacun (`deploy/`), poussées sur `registry.enopt.ovh:80` :
+
+| Job | Image | Rôle | Accès (Traefik) |
+|---|---|---|---|
+| `checkeo-frontend` | `checkeo-frontend` | fichiers statiques du frontend | `http://checkeo.enopt.ovh` |
+| `checkeo-backend` | `checkeo-backend` | API FastAPI, base en lecture seule | `http://checkeo.enopt.ovh/api`, `/docs` |
+| `checkeo-database` | `checkeo-database` | ingestion au démarrage, puis interface web DuckDB | `http://checkeo-db.enopt.ovh` (réseau local uniquement) |
+
+La base est partagée par le host volume `checkeo-data`, à créer une fois :
+
+```bash
+export NOMAD_ADDR=http://192.168.1.21:4646 NOMAD_TOKEN=…
+sed -n 's/^#> //p' deploy/database.nomad.hcl | nomad volume create -
+```
+
+Construction, push et déploiement (tag = commit court) :
+
+```bash
+deploy/deploy.sh all              # ou frontend | backend | database ; --no-run pour seulement pousser
+```
+
+Mise à jour des données : `nomad job restart -yes checkeo-database` relance l'ingestion, puis
+`nomad job restart -yes checkeo-backend` (l'API garde l'ancienne base ouverte jusqu'au redémarrage).
+
 ## API
 
 | Endpoint | Description |
