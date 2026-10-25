@@ -56,7 +56,7 @@ const daysLabel = (t: TrainRow) => `${t.n_days}/${counts.value.n_dates} j.`
 
     <template v-else>
       <div class="tiles">
-        <v-card class="pa-3 tile">
+        <!-- <v-card class="pa-3 tile">
           <div class="text-caption text-medium-emphasis">
             {{ isOutbound ? `Arriver avant ${hLabel(target.target_s)}` : `Partir après ${hLabel(target.target_s)}` }}
           </div>
@@ -79,7 +79,7 @@ const daysLabel = (t: TrainRow) => `${t.n_days}/${counts.value.n_dates} j.`
         <v-card class="pa-3 tile">
           <div class="text-caption text-medium-emphasis">{{ peakLabel }} ({{ data.peak.by === 'arr' ? 'arrivée' : 'départ' }})</div>
           <div class="text-h5 font-weight-bold">{{ data.peak.count }} <span class="text-body-2">train{{ data.peak.count > 1 ? 's' : '' }}</span></div>
-        </v-card>
+        </v-card> -->
 
         <v-card class="pa-3 tile">
           <div class="text-caption text-medium-emphasis">Plus long trou entre 6h et 21h</div>

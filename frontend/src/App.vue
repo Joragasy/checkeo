@@ -113,14 +113,14 @@ onMounted(async () => {
 const fromName = computed(() => profile.value?.from.name ?? '')
 const toName = computed(() => profile.value?.to.name ?? '')
 const sampleDates = computed(() => profile.value?.meta.sample_dates ?? [])
-const m = computed(() => profile.value?.meta ?? meta.value)
+// const m = computed(() => profile.value?.meta ?? meta.value)
 
 const DAY_TYPES: { value: DayType; title: string; short: string }[] = [
   { value: 'weekday', title: 'Jour de semaine', short: 'Semaine' },
   { value: 'saturday', title: 'Samedi', short: 'Samedi' },
   { value: 'sunday', title: 'Dimanche', short: 'Dimanche' },
 ]
-const SOURCE_ORDER = ['gtfs', 'tgv', 'ter', 'intercites', 'gares', 'communes']
+// const SOURCE_ORDER = ['gtfs', 'tgv', 'ter', 'intercites', 'gares', 'communes']
 </script>
 
 <template>
