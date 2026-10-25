@@ -85,9 +85,11 @@ job "checkeo-database" {
         destination = "/data"
       }
 
+      # cpu est une réservation, pas un plafond : l'ingestion utilise le CPU libre du nœud.
+      # Pic mesuré : ~620 Mo.
       resources {
-        cpu    = 1000
-        memory = 2048
+        cpu    = 150
+        memory = 786
       }
     }
 
@@ -108,8 +110,8 @@ job "checkeo-database" {
       }
 
       resources {
-        cpu    = 300
-        memory = 512
+        cpu    = 100
+        memory = 256
       }
     }
   }

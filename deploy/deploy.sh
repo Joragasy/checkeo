@@ -3,7 +3,9 @@
 #   deploy/deploy.sh [frontend|backend|database|all] [--no-run]
 set -euo pipefail
 
-REGISTRY="${REGISTRY:-registry.enopt.ovh:80}"
+# Registre privé joint directement sur le LAN (job docker-registry sur nomad-client-3), en HTTP :
+# il doit figurer dans les insecure-registries du poste et des clients Nomad.
+REGISTRY="${REGISTRY:-192.168.1.22:5000}"
 export NOMAD_ADDR="${NOMAD_ADDR:-http://192.168.1.21:4646}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAG="$(git -C "$ROOT" rev-parse --short HEAD)"

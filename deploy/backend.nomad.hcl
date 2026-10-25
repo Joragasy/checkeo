@@ -81,8 +81,8 @@ job "checkeo-backend" {
       }
 
       resources {
-        cpu    = 500
-        memory = 512
+        cpu    = 100
+        memory = 256
       }
     }
   }

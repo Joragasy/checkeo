@@ -93,7 +93,8 @@ cd backend && uv run uvicorn checkeo.api.main:app --host 0.0.0.0 --port 8000
 
 ## Déploiement Nomad
 
-Trois jobs, une image chacun (`deploy/`), poussées sur `registry.enopt.ovh:80` :
+Trois jobs, une image chacun (`deploy/`), poussées sur le registre privé `192.168.1.22:5000`
+(HTTP : à déclarer dans `insecure-registries` du poste et des clients Nomad) :
 
 | Job | Image | Rôle | Accès (Traefik) |
 |---|---|---|---|
