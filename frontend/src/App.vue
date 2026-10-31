@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useDisplay, useTheme } from 'vuetify'
 import { fetchMeta, fetchProfile, type DayType, type Meta, type Profile, type StationHit } from './api'
 import { dateLabel } from './format'
+import ConnectionsMap from './components/ConnectionsMap.vue'
 import DirectionPanel from './components/DirectionPanel.vue'
 import StationAutocomplete from './components/StationAutocomplete.vue'
 
@@ -196,6 +197,11 @@ const DAY_TYPES: { value: DayType; title: string; short: string }[] = [
         </v-card>
 
         <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
+
+        <ConnectionsMap
+          v-if="home" :place="home" :day-type="dayType" :include-buses="settings.includeBuses"
+          :selected-id="work?.id" @select="work = $event"
+        />
 
         <div v-if="!profile && !loading" class="intro text-center py-6 px-2">
           <p class="text-body-1 text-medium-emphasis mb-4">

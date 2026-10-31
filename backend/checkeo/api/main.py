@@ -2,6 +2,7 @@
 
     GET /api/stations?q=lil&limit=10
     GET /api/profile?from=city:59350&to=city:75056&day_type=weekday&bin=60&arrive_by=09:00&leave_after=18:00
+    GET /api/connections?from=city:59350&day_type=weekday&direction=outbound
     GET /api/meta
 """
 
@@ -91,6 +92,21 @@ def create_app(db_path: Path | None = None, static_dir: Path | None = None) -> F
                 from_, to, day_type, bin_minutes=bin, arrive_by_s=arrive_s,
                 leave_after_s=leave_s, include_buses=include_buses,
             )
+        except NotFound as e:
+            raise HTTPException(404, str(e)) from e
+        except BadRequest as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/connections")
+    def connections(
+        request: Request,
+        from_: Annotated[str, Query(alias="from", description="id de ville (city:…) ou de gare (StopArea:…)")],
+        day_type: Literal["weekday", "saturday", "sunday"] = "weekday",
+        direction: Literal["outbound", "inbound"] = "outbound",
+        include_buses: bool = False,
+    ):
+        try:
+            return service(request).connections(from_, day_type, direction, include_buses)
         except NotFound as e:
             raise HTTPException(404, str(e)) from e
         except BadRequest as e:

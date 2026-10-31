@@ -160,3 +160,38 @@ export const fetchProfile = (p: ProfileParams, signal?: AbortSignal) =>
   get<Profile>('profile', { ...p }, signal)
 
 export const fetchMeta = () => get<Meta>('meta', {})
+
+export type Direction = 'outbound' | 'inbound'
+
+export interface ConnectionStation {
+  id: string
+  name: string
+  city: string | null
+  lat: number
+  lon: number
+  trains: number
+  occasional: number
+  min_duration_min: number
+  families: string[]
+}
+
+export interface Connections {
+  place: { id: string; kind: 'city' | 'station'; name: string; lat: number | null; lon: number | null; stop_area_ids: string[] }
+  day_type: DayType
+  day_type_label: string
+  direction: Direction
+  n_dates: number
+  presence_threshold: number
+  include_buses: boolean
+  stations: ConnectionStation[]
+}
+
+export interface ConnectionsParams {
+  from: string
+  day_type: DayType
+  direction: Direction
+  include_buses: boolean
+}
+
+export const fetchConnections = (p: ConnectionsParams, signal?: AbortSignal) =>
+  get<Connections>('connections', { ...p }, signal)

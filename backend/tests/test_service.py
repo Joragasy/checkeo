@@ -4,7 +4,7 @@ import pytest
 
 from checkeo.service import BadRequest, NotFound
 
-from .conftest import A1, ALPHA, B1, B2, PARIS, TODAY, Z
+from .conftest import A1, A2, ALPHA, B1, B2, C, PARIS, TODAY, Z
 
 H = 3600
 
@@ -93,3 +93,29 @@ def test_errors(app_service):
         app_service.profile(ALPHA, A1)
     with pytest.raises(BadRequest):
         app_service.profile(ALPHA, PARIS, "holiday")
+
+
+def test_connections_outbound(app_service):
+    res = app_service.connections(ALPHA, "weekday")
+    by = {s["id"]: s for s in res["stations"]}
+    assert res["place"]["kind"] == "city" and res["n_dates"] == 10
+    assert A1 not in by and A2 not in by  # les gares de la ville choisie sont exclues
+    # Mêmes trains que le profil Alpha → Paris : 1003, 1001, 1011/1511 vers Beta Centre, 2001 vers Beta Est.
+    assert (by[B1]["trains"], by[B1]["occasional"], by[B1]["min_duration_min"]) == (3, 1, 60)
+    assert by[B2]["trains"] == 1 and by[C]["trains"] == 1 and by[C]["min_duration_min"] == 20
+    assert by[B1]["name"] == "Beta Centre" and by[B1]["lat"] == 48.8
+    assert res["stations"][0]["id"] == B1
+    with_buses = {s["id"]: s for s in app_service.connections(ALPHA, "weekday", include_buses=True)["stations"]}
+    assert with_buses[B2]["trains"] == 2
+
+
+def test_connections_inbound_and_errors(app_service):
+    by = {s["id"]: s["trains"] for s in app_service.connections(ALPHA, "weekday", "inbound")["stations"]}
+    # 1005 et 1009 depuis Beta Centre, 1013 depuis Beta Est, 2003 depuis Gamma (descente seule à Alpha Nord).
+    assert by == {B1: 2, B2: 1, C: 1}
+    sat = app_service.connections(A1, "saturday")["stations"]
+    assert [(s["id"], s["trains"], s["occasional"]) for s in sat] == [(Z, 1, 0)]  # 2005 : 1 samedi sur 2
+    with pytest.raises(NotFound):
+        app_service.connections("city:00000")
+    with pytest.raises(BadRequest):
+        app_service.connections(ALPHA, "weekday", "sideways")

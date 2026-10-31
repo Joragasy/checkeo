@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import threading
+from functools import lru_cache
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from .config import DUCKDB_MEMORY_LIMIT, DUCKDB_THREADS, TMP_DIR
+from .core.connections import connection_counts
 from .core.daytype import DAY_TYPE_LABELS, typical_day
 from .core.gtfs_time import format_display
 from .core.indicators import direction_profile
@@ -52,7 +55,10 @@ class Checkeo:
             raise FileNotFoundError(
                 f"Base introuvable : {db_path}. Lancez d'abord `uv run python -m checkeo.ingest.run`."
             )
-        self.con = duckdb.connect(str(db_path), read_only=True)
+        self.con = duckdb.connect(str(db_path), read_only=True, config={
+            "threads": DUCKDB_THREADS, "memory_limit": DUCKDB_MEMORY_LIMIT,
+            "temp_directory": str(TMP_DIR), "preserve_insertion_order": False,
+        })
         self._lock = threading.Lock()
         q = self.con.sql
         self.meta = {k: json.loads(v) for k, v in q("SELECT key, value FROM meta").fetchall()}
@@ -68,6 +74,8 @@ class Checkeo:
         self.groups = self.groups.astype(object).where(self.groups.notna(), None)
         self.station_by_id = self.stations.set_index("stop_area_id").to_dict("index")
         self._search_index = self._build_search_index()
+        # Base en lecture seule : un résultat calculé reste valable tant que l'application tourne.
+        self.connections = lru_cache(maxsize=256)(self._connections)
 
     # ------------------------------------------------------------------ recherche de gares
     def _build_search_index(self) -> list[dict]:
@@ -248,6 +256,100 @@ class Checkeo:
                 "include_buses": include_buses,
             },
             "cost": None,  # réservé : tarifs et abonnements (hors V1)
+        }
+
+    # ------------------------------------------------------------------ desserte directe
+    def _reach(self, stops: list[str], direction: str, dates: list[dt.date], include_buses: bool) -> pd.DataFrame:
+        """Trains reliant directement `stops` à toute autre gare : une ligne par (gare reliée, train).
+
+        Comme `select_direct_legs`, mais par gare reliée : si le trip dessert plusieurs gares de
+        `stops`, on garde la dernière montée (départs) ou la première descente (arrivées). Comme
+        `typical_day`, chaque train garde son horaire le plus fréquent et son nombre de dates.
+        Tout est agrégé dans DuckDB : un grand nœud (Paris) représente des millions de lignes
+        (circulation × gare × date) qu'il ne faut pas charger en mémoire.
+        """
+        mine, other = ("o", "d") if direction == "outbound" else ("d", "o")
+        board = "o.seq DESC" if direction == "outbound" else "d.seq"
+        sql = f"""
+            WITH legs AS (
+                SELECT o.trip_id, {other}.stop_area_id AS stop, o.dep_s, d.arr_s,
+                       row_number() OVER (PARTITION BY o.trip_id, {other}.stop_area_id ORDER BY {board}) AS rk
+                FROM stop_times o
+                JOIN stop_times d ON o.trip_id = d.trip_id AND o.seq < d.seq
+                WHERE {mine}.stop_area_id IN (SELECT unnest($s)) AND {other}.stop_area_id NOT IN (SELECT unnest($s))
+                  AND coalesce(o.pickup_type, 0) != 1 AND coalesce(d.drop_off_type, 0) != 1
+            ),
+            occ AS (
+                SELECT sd.date, l.stop, t.train_number, l.dep_s, l.arr_s, t.family,
+                       row_number() OVER (PARTITION BY sd.date, l.stop, t.train_number ORDER BY l.dep_s) AS r
+                FROM legs l
+                JOIN trips t ON t.trip_id = l.trip_id
+                JOIN service_dates sd ON sd.service_id = t.service_id
+                WHERE l.rk = 1 AND sd.date IN (SELECT unnest($dates)) AND ($buses OR NOT coalesce(t.is_bus, false))
+            ),
+            variants AS (
+                SELECT stop, train_number, dep_s, arr_s, any_value(family) AS family,
+                       count(*) AS c, min(date) AS first_date
+                FROM occ WHERE r = 1
+                GROUP BY stop, train_number, dep_s, arr_s
+            )
+            SELECT stop, train_number, dep_s, arr_s, family, n_days FROM (
+                SELECT *, sum(c) OVER (PARTITION BY stop, train_number) AS n_days,
+                       row_number() OVER (PARTITION BY stop, train_number ORDER BY c DESC, first_date) AS v
+                FROM variants
+            ) WHERE v = 1
+        """
+        with self._lock:
+            return self.con.execute(sql, {"s": stops, "dates": dates, "buses": include_buses}).df()
+
+    def _connections(
+        self,
+        place_id: str,
+        day_type: str = "weekday",
+        direction: str = "outbound",
+        include_buses: bool = False,
+        threshold: float = 0.5,
+    ) -> dict:
+        """Gares reliées sans changement à `place_id`, avec leur nombre de trains du jour type."""
+        if day_type not in DAY_TYPE_LABELS:
+            raise BadRequest(f"day_type doit valoir {', '.join(DAY_TYPE_LABELS)}")
+        if direction not in ("outbound", "inbound"):
+            raise BadRequest("direction doit valoir outbound ou inbound")
+        place = self.resolve(place_id)
+        dates = self.samples.get(day_type, [])
+        trains = self._reach(place.stop_area_ids, direction, dates, include_buses) if dates else pd.DataFrame()
+        counts = connection_counts(trains, len(dates), threshold)
+
+        stations = []
+        for r in counts.itertuples(index=False):
+            stop_id = r.stop
+            s = self.station_by_id.get(stop_id)
+            if s is None or s["lat"] is None or s["lon"] is None:
+                continue
+            stations.append({
+                "id": stop_id,
+                "name": s["name"], "city": s["city_name"], "lat": s["lat"], "lon": s["lon"],
+                "trains": int(r.trains), "occasional": int(r.occasional),
+                "min_duration_min": int(r.min_duration_min), "families": list(r.families),
+            })
+        stations.sort(key=lambda s: (-s["trains"], -s["occasional"], s["name"]))
+
+        if place.kind == "city":
+            g = self.groups[self.groups["city_group_id"] == place.id].iloc[0]
+            lat, lon = g["lat"], g["lon"]
+        else:
+            s = self.station_by_id[place.id]
+            lat, lon = s["lat"], s["lon"]
+        return {
+            "place": {"id": place.id, "kind": place.kind, "name": place.name, "lat": lat, "lon": lon,
+                      "stop_area_ids": place.stop_area_ids},
+            "day_type": day_type,
+            "day_type_label": DAY_TYPE_LABELS[day_type],
+            "direction": direction,
+            "n_dates": len(dates),
+            "presence_threshold": threshold,
+            "include_buses": include_buses,
+            "stations": stations,
         }
 
     def public_meta(self) -> dict:

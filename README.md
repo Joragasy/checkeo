@@ -9,7 +9,10 @@ affiche, à l'aller et au retour :
   repartant après une heure cible, plus long trou entre 6 h et 21 h, nombre de trains en
   pointe, durée du trajet (min / médiane / max) ;
 - la **fiabilité historique** publiée par la SNCF : ponctualité moyenne sur 12 mois, courbe
-  mensuelle, taux d'annulation et causes des retards quand elles existent.
+  mensuelle, taux d'annulation et causes des retards quand elles existent ;
+- une **carte des liaisons directes** de la gare de domicile : chaque gare reliée sans
+  changement, colorée selon son nombre de trains par jour type (départs ou arrivées) ;
+  un clic sur une gare la choisit comme gare de travail.
 
 Interface en français, adaptée au mobile, en mode clair ou sombre.
 
@@ -28,6 +31,20 @@ uv sync
 cd ../frontend
 npm install
 ```
+
+### Fond de carte
+
+La carte des liaisons utilise les fonds CARTO, qui demandent une clé gratuite : demandez-la sur
+<https://carto.com/basemaps/apikey> (sans compte, envoyée par e-mail), puis créez
+`frontend/.env.local` :
+
+```bash
+VITE_CARTO_KEY=votre_cle
+```
+
+Le fichier est ignoré par git mais copié dans l'image Docker du frontend. La clé reste visible
+dans le JavaScript servi : restreignez-la à votre domaine depuis le tableau de bord CARTO. Sans
+clé, la carte se rabat sur les tuiles OpenStreetMap.
 
 ## Mise à jour des données
 

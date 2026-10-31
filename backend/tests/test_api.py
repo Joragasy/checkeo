@@ -47,3 +47,13 @@ def test_meta(client):
     m = client.get("/api/meta").json()
     assert m["feed_end"] == "2030-03-31"
     assert m["regularity_last_month"]["TGV"] == "2030-01-01"
+
+
+def test_connections(client):
+    r = client.get("/api/connections", params={"from": ALPHA, "direction": "inbound"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["direction"] == "inbound" and body["place"]["id"] == ALPHA
+    assert {"id", "name", "lat", "lon", "trains", "occasional", "min_duration_min", "families"} <= set(body["stations"][0])
+    assert client.get("/api/connections", params={"from": "city:00000"}).status_code == 404
+    assert client.get("/api/connections", params={"from": ALPHA, "direction": "up"}).status_code == 422
