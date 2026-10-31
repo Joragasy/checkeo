@@ -1,4 +1,4 @@
-"""Chaîne complète sur le GTFS de test : ingestion → base DuckDB → profil."""
+"""Chaîne complète sur le GTFS de test : ingestion → base PostgreSQL → profil."""
 
 import pytest
 

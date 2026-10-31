@@ -8,10 +8,14 @@ Fenêtre d'échantillonnage : 2 semaines à partir du lundi 4 mars 2030.
 """
 
 import datetime as dt
+import os
+import uuid
 from pathlib import Path
 
 import pandas as pd
+import psycopg
 import pytest
+from psycopg import sql
 
 from checkeo.ingest.build import build_database
 
@@ -97,8 +101,15 @@ def ic_df() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="session")
-def db_path(tmp_path_factory) -> Path:
-    out = tmp_path_factory.mktemp("db") / "test.duckdb"
+def db(tmp_path_factory):
+    """(dsn, schema) d'une base construite sur le GTFS de test, dans un schéma jetable.
+
+    Demande une base PostgreSQL : CHECKEO_TEST_DATABASE_URL (sinon les tests concernés sont ignorés).
+    """
+    dsn = os.environ.get("CHECKEO_TEST_DATABASE_URL")
+    if not dsn:
+        pytest.skip("CHECKEO_TEST_DATABASE_URL non défini")
+    schema = f"checkeo_test_{uuid.uuid4().hex[:8]}"
     build_database(
         gtfs_path=MINI_GTFS,
         gares=gares_df(),
@@ -106,18 +117,23 @@ def db_path(tmp_path_factory) -> Path:
         tgv=tgv_df(),
         ter=ter_df(),
         intercites=ic_df(),
-        out_path=out,
+        dsn=dsn,
+        schema=schema,
         sample_start=SAMPLE_START,
         weeks=2,
         sources={"tgv": {"modified": "2030-02-02T10:00:00+00:00"}},
         overrides_path=None,
         today=TODAY,
     )
-    return out
+    yield dsn, schema
+    with psycopg.connect(dsn) as con:
+        con.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema)))
 
 
 @pytest.fixture(scope="session")
-def app_service(db_path):
+def app_service(db):
     from checkeo.service import Checkeo
 
-    return Checkeo(db_path)
+    service = Checkeo(*db)
+    yield service
+    service.close()

@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ..config import DB_PATH, ROOT
+from ..config import DATABASE_URL, PG_SCHEMA, ROOT
 from ..core.gtfs_time import parse_hhmm
 from ..service import BadRequest, Checkeo, NotFound
 
@@ -45,14 +45,15 @@ class JSON(JSONResponse):
         return json.dumps(content, default=_default, ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
-def create_app(db_path: Path | None = None, static_dir: Path | None = None) -> FastAPI:
-    db_path = db_path or DB_PATH
+def create_app(dsn: str | None = None, schema: str | None = None, static_dir: Path | None = None) -> FastAPI:
+    dsn = dsn or DATABASE_URL
+    schema = schema or PG_SCHEMA
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.service = Checkeo(db_path)
+        app.state.service = Checkeo(dsn, schema)
         yield
-        app.state.service.con.close()
+        app.state.service.close()
 
     app = FastAPI(title="Checkeo", version="0.1.0", default_response_class=JSON, lifespan=lifespan)
     origins = os.environ.get("CHECKEO_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",")

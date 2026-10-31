@@ -9,6 +9,6 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/checkeo ./checkeo
 RUN uv sync --frozen --no-dev
 
-ENV PATH=/opt/venv/bin:$PATH CHECKEO_DATA_DIR=/data
+ENV PATH=/opt/venv/bin:$PATH
 EXPOSE 8000
 CMD ["uvicorn", "checkeo.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

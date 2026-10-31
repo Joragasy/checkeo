@@ -9,15 +9,6 @@ job "checkeo-backend" {
   group "api" {
     count = 1
 
-    # La base est lue sur le host volume rempli par le job checkeo-database.
-    volume "checkeo_data" {
-      type            = "host"
-      source          = "checkeo-data"
-      access_mode     = "single-node-multi-writer"
-      attachment_mode = "file-system"
-      read_only       = true
-    }
-
     network {
       port "http" {
         to     = 8000
@@ -27,7 +18,7 @@ job "checkeo-backend" {
 
     shutdown_delay = "5s"
 
-    # Au premier déploiement, la base n'existe qu'une fois l'ingestion terminée : on réessaie.
+    # Au premier déploiement, le schéma n'existe qu'une fois l'ingestion terminée : on réessaie.
     restart {
       attempts = 10
       interval = "30m"
@@ -69,15 +60,17 @@ job "checkeo-backend" {
         ports              = ["http"]
       }
 
-      volume_mount {
-        volume      = "checkeo_data"
-        destination = "/data"
-        read_only   = true
+      # DSN de la base : voir deploy/ingest.nomad.hcl.
+      template {
+        destination = "secrets/db.env"
+        env         = true
+        data        = <<-EOT
+          {{ with nomadVar "nomad/jobs/checkeo-backend" }}CHECKEO_DATABASE_URL={{ .database_url }}{{ end }}
+        EOT
       }
 
       env {
-        CHECKEO_DATA_DIR = "/data"
-        CHECKEO_CORS     = "http://checkeo.enopt.ovh"
+        CHECKEO_CORS = "http://checkeo.enopt.ovh"
       }
 
       resources {

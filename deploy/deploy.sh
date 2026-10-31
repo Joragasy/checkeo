@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Construit, pousse et déploie les images Checkeo sur Nomad.
-#   deploy/deploy.sh [frontend|backend|database|all] [--no-run]
+#   deploy/deploy.sh [frontend|backend|ingest|all] [--no-run]
 set -euo pipefail
 
 # Registre privé joint directement sur le LAN (job docker-registry sur nomad-client-3), en HTTP :
@@ -27,7 +27,7 @@ deploy() {
 }
 
 case "$target" in
-  frontend|backend|database) deploy "$target" ;;
-  all) for t in database backend frontend; do deploy "$t"; done ;;
-  *) echo "usage: $0 [frontend|backend|database|all] [--no-run]" >&2; exit 2 ;;
+  frontend|backend|ingest) deploy "$target" ;;
+  all) for t in ingest backend frontend; do deploy "$t"; done ;;
+  *) echo "usage: $0 [frontend|backend|ingest|all] [--no-run]" >&2; exit 2 ;;
 esac

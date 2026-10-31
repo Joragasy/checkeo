@@ -1,19 +1,18 @@
-"""Accès à la base DuckDB et calcul d'un profil navetteur complet (aller + retour + fiabilité)."""
+"""Accès à la base PostgreSQL et calcul d'un profil navetteur complet (aller + retour + fiabilité)."""
 
 from __future__ import annotations
 
 import datetime as dt
 import json
-import threading
 from functools import lru_cache
 import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
 
-import duckdb
 import pandas as pd
+import psycopg
+from psycopg_pool import ConnectionPool
 
-from .config import DUCKDB_MEMORY_LIMIT, DUCKDB_THREADS, TMP_DIR
+from .config import check_dsn
 from .core.connections import connection_counts
 from .core.daytype import DAY_TYPE_LABELS, typical_day
 from .core.gtfs_time import format_display
@@ -25,6 +24,8 @@ from .core.trips import Journey, Leg, merge_coupled, select_direct_legs
 # Identité d'un train sur un sens donné, et ce qui peut varier d'une date à l'autre.
 ID = ["train_number"]
 TIMES = ["o_stop", "d_stop", "dep_s", "arr_s"]
+# int2, int4, int8, float4, float8, numeric
+NUMERIC_OIDS = {21, 23, 20, 700, 701, 1700}
 
 
 class NotFound(Exception):
@@ -50,23 +51,27 @@ class Place:
 
 
 class Checkeo:
-    def __init__(self, db_path: Path):
-        if not db_path.exists():
-            raise FileNotFoundError(
-                f"Base introuvable : {db_path}. Lancez d'abord `uv run python -m checkeo.ingest.run`."
+    def __init__(self, dsn: str, schema: str = "checkeo"):
+        check_dsn(dsn)
+        with psycopg.connect(dsn) as con:
+            found = con.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = %s AND table_name = 'meta'", (schema,)
+            ).fetchone()
+        if not found:
+            raise RuntimeError(
+                f"Schéma {schema!r} vide ou absent. Lancez d'abord `uv run python -m checkeo.ingest.run`."
             )
-        self.con = duckdb.connect(str(db_path), read_only=True, config={
-            "threads": DUCKDB_THREADS, "memory_limit": DUCKDB_MEMORY_LIMIT,
-            "temp_directory": str(TMP_DIR), "preserve_insertion_order": False,
-        })
-        self._lock = threading.Lock()
-        q = self.con.sql
-        self.meta = {k: json.loads(v) for k, v in q("SELECT key, value FROM meta").fetchall()}
-        self.stations = q("SELECT * FROM stations").df()
-        self.groups = q("SELECT * FROM city_groups").df()
-        self.regularity = q("SELECT * FROM regularity").df()
-        self.reg_map = q("SELECT * FROM regularity_map").df()
-        samples = q("SELECT day_type, date FROM day_type_samples ORDER BY date").df()
+        # Connexions en lecture seule, sur le schéma de Checkeo.
+        options = f"-c search_path={schema} -c default_transaction_read_only=on"
+        self.pool = ConnectionPool(dsn, min_size=1, max_size=4, kwargs={"options": options, "autocommit": True},
+                                   open=True)
+        q = self._df
+        self.meta = {r.key: json.loads(r.value) for r in q("SELECT key, value FROM meta").itertuples()}
+        self.stations = q("SELECT * FROM stations")
+        self.groups = q("SELECT * FROM city_groups")
+        self.regularity = q("SELECT * FROM regularity")
+        self.reg_map = q("SELECT * FROM regularity_map")
+        samples = q("SELECT day_type, date FROM day_type_samples ORDER BY date")
         samples["date"] = pd.to_datetime(samples["date"]).dt.date
         self.samples = {t: list(sub["date"]) for t, sub in samples.groupby("day_type")}
         # Valeurs manquantes → None (sérialisables en JSON), y compris pour les colonnes texte.
@@ -76,6 +81,20 @@ class Checkeo:
         self._search_index = self._build_search_index()
         # Base en lecture seule : un résultat calculé reste valable tant que l'application tourne.
         self.connections = lru_cache(maxsize=256)(self._connections)
+
+    def _df(self, query: str, params: dict | None = None) -> pd.DataFrame:
+        with self.pool.connection() as con, con.cursor() as cur:
+            cur.execute(query, params)
+            desc = cur.description
+            df = pd.DataFrame(cur.fetchall(), columns=[d.name for d in desc])
+        # Colonnes numériques : vrais types numpy (NULL → NaN).
+        for d in desc:
+            if d.type_code in NUMERIC_OIDS:
+                df[d.name] = pd.to_numeric(df[d.name])
+        return df
+
+    def close(self) -> None:
+        self.pool.close()
 
     # ------------------------------------------------------------------ recherche de gares
     def _build_search_index(self) -> list[dict]:
@@ -129,20 +148,18 @@ class Checkeo:
                    d.stop_area_id AS d_stop, d.seq AS d_seq, d.arr_s, d.drop_off_type AS d_dropoff
             FROM stop_times o
             JOIN stop_times d ON o.trip_id = d.trip_id
-            WHERE o.stop_area_id IN (SELECT unnest($o)) AND d.stop_area_id IN (SELECT unnest($d))
+            WHERE o.stop_area_id = ANY(%(o)s) AND d.stop_area_id = ANY(%(d)s)
               AND o.seq < d.seq
         """
-        with self._lock:
-            return self.con.execute(sql, {"o": origins, "d": dests}).df()
+        return self._df(sql, {"o": origins, "d": dests})
 
     def _trips_and_dates(self, trip_ids: list[str], dates: list[dt.date]) -> pd.DataFrame:
         sql = """
             SELECT t.trip_id, t.train_number, t.mode, t.family, t.is_bus, t.region_code, sd.date
             FROM trips t JOIN service_dates sd ON sd.service_id = t.service_id
-            WHERE t.trip_id IN (SELECT unnest($t)) AND sd.date IN (SELECT unnest($dates))
+            WHERE t.trip_id = ANY(%(t)s) AND sd.date = ANY(%(dates)s)
         """
-        with self._lock:
-            df = self.con.execute(sql, {"t": trip_ids, "dates": dates}).df()
+        df = self._df(sql, {"t": trip_ids, "dates": dates})
         if len(df):
             df["date"] = pd.to_datetime(df["date"]).dt.date
         return df
@@ -265,7 +282,7 @@ class Checkeo:
         Comme `select_direct_legs`, mais par gare reliée : si le trip dessert plusieurs gares de
         `stops`, on garde la dernière montée (départs) ou la première descente (arrivées). Comme
         `typical_day`, chaque train garde son horaire le plus fréquent et son nombre de dates.
-        Tout est agrégé dans DuckDB : un grand nœud (Paris) représente des millions de lignes
+        Tout est agrégé dans PostgreSQL : un grand nœud (Paris) représente des millions de lignes
         (circulation × gare × date) qu'il ne faut pas charger en mémoire.
         """
         mine, other = ("o", "d") if direction == "outbound" else ("d", "o")
@@ -276,7 +293,7 @@ class Checkeo:
                        row_number() OVER (PARTITION BY o.trip_id, {other}.stop_area_id ORDER BY {board}) AS rk
                 FROM stop_times o
                 JOIN stop_times d ON o.trip_id = d.trip_id AND o.seq < d.seq
-                WHERE {mine}.stop_area_id IN (SELECT unnest($s)) AND {other}.stop_area_id NOT IN (SELECT unnest($s))
+                WHERE {mine}.stop_area_id = ANY(%(s)s) AND {other}.stop_area_id <> ALL(%(s)s)
                   AND coalesce(o.pickup_type, 0) != 1 AND coalesce(d.drop_off_type, 0) != 1
             ),
             occ AS (
@@ -285,22 +302,21 @@ class Checkeo:
                 FROM legs l
                 JOIN trips t ON t.trip_id = l.trip_id
                 JOIN service_dates sd ON sd.service_id = t.service_id
-                WHERE l.rk = 1 AND sd.date IN (SELECT unnest($dates)) AND ($buses OR NOT coalesce(t.is_bus, false))
+                WHERE l.rk = 1 AND sd.date = ANY(%(dates)s) AND (%(buses)s OR NOT coalesce(t.is_bus, false))
             ),
             variants AS (
-                SELECT stop, train_number, dep_s, arr_s, any_value(family) AS family,
+                SELECT stop, train_number, dep_s, arr_s, min(family) AS family,
                        count(*) AS c, min(date) AS first_date
                 FROM occ WHERE r = 1
                 GROUP BY stop, train_number, dep_s, arr_s
             )
             SELECT stop, train_number, dep_s, arr_s, family, n_days FROM (
-                SELECT *, sum(c) OVER (PARTITION BY stop, train_number) AS n_days,
+                SELECT *, (sum(c) OVER (PARTITION BY stop, train_number))::int AS n_days,
                        row_number() OVER (PARTITION BY stop, train_number ORDER BY c DESC, first_date) AS v
                 FROM variants
-            ) WHERE v = 1
+            ) AS ranked WHERE v = 1
         """
-        with self._lock:
-            return self.con.execute(sql, {"s": stops, "dates": dates, "buses": include_buses}).df()
+        return self._df(sql, {"s": stops, "dates": dates, "buses": include_buses})
 
     def _connections(
         self,

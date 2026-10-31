@@ -3,10 +3,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = Path(os.environ.get("CHECKEO_DATA_DIR", ROOT / "data"))
-DB_PATH = Path(os.environ.get("CHECKEO_DB", DATA_DIR / "checkeo.duckdb"))
 
-# Mémoire de travail de DuckDB : le backend tourne avec 256 Mo sous Nomad. Au-delà, DuckDB
-# déborde sur disque dans TMP_DIR (la base est montée en lecture seule).
-DUCKDB_MEMORY_LIMIT = os.environ.get("CHECKEO_DUCKDB_MEMORY", "32MB")
-DUCKDB_THREADS = int(os.environ.get("CHECKEO_DUCKDB_THREADS", "1"))
-TMP_DIR = Path(os.environ.get("CHECKEO_TMP_DIR", "/tmp/checkeo-duckdb"))
+# Base PostgreSQL : DSN (postgresql://utilisateur:motdepasse@hôte:5432/base) et schéma des tables.
+DATABASE_URL = os.environ.get("CHECKEO_DATABASE_URL","postgres.default.service.nomad")
+PG_SCHEMA = os.environ.get("CHECKEO_PG_SCHEMA", "checkeo")
+
+
+def check_dsn(dsn: str | None) -> str:
+    """Refuse un DSN incomplet (ex. un simple nom d'hôte) avec un message clair."""
+    if not dsn:
+        raise ValueError("Aucune base : définissez CHECKEO_DATABASE_URL (postgresql://utilisateur:motdepasse@hôte:5432/base).")
+    if "://" not in dsn and "=" not in dsn:
+        raise ValueError(
+            f"CHECKEO_DATABASE_URL invalide ({dsn!r}) : attendu postgresql://utilisateur:motdepasse@hôte:5432/base."
+        )
+    return dsn

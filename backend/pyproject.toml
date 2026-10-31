@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Profil statistique d'un trajet ferroviaire domicile-travail (open data SNCF)"
 requires-python = ">=3.12"
 dependencies = [
-    "duckdb>=1.1",
+    "psycopg[binary,pool]>=3.2",
     "pandas>=2.2",
     "pyarrow>=17",
     "httpx>=0.27",

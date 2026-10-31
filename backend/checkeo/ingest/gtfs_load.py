@@ -1,4 +1,4 @@
-"""Lecture d'un GTFS (zip ou répertoire) et normalisation en tables prêtes pour DuckDB."""
+"""Lecture d'un GTFS (zip ou répertoire) et normalisation en tables prêtes pour PostgreSQL."""
 
 from __future__ import annotations
 

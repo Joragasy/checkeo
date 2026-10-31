@@ -46,6 +46,17 @@ Le fichier est ignoré par git mais copié dans l'image Docker du frontend. La c
 dans le JavaScript servi : restreignez-la à votre domaine depuis le tableau de bord CARTO. Sans
 clé, la carte se rabat sur les tuiles OpenStreetMap.
 
+## Base de données
+
+Les données sont stockées dans une base PostgreSQL existante, dans le schéma `checkeo`.
+Indiquez-la par son DSN :
+
+```bash
+export CHECKEO_DATABASE_URL=postgresql://utilisateur:motdepasse@hôte:5432/base
+```
+
+L'utilisateur doit pouvoir créer, renommer et supprimer des schémas dans cette base.
+
 ## Mise à jour des données
 
 ```bash
@@ -53,10 +64,12 @@ cd backend
 uv run python -m checkeo.ingest.run
 ```
 
-Le script télécharge toutes les sources dans `data/raw/`, puis construit la base
-`data/checkeo.duckdb`. L'ancienne base n'est remplacée qu'une fois la nouvelle entièrement
-écrite. Comptez environ 30 secondes. Relancez-le aussi souvent que nécessaire : le GTFS est
-republié chaque jour, la régularité chaque mois.
+Le script télécharge toutes les sources dans `data/raw/`, charge les tables dans un schéma de
+travail `checkeo_build`, puis l'échange avec `checkeo` en une seule transaction : l'ancienne base
+reste en service jusqu'à ce que la nouvelle soit entièrement chargée, et une ingestion qui échoue
+n'y touche pas. Comptez environ 30 secondes. Relancez-le aussi souvent que nécessaire : le GTFS est
+republié chaque jour, la régularité chaque mois. Redémarrez ensuite l'API, qui garde en mémoire les
+gares et la régularité.
 
 Options :
 
@@ -65,32 +78,35 @@ Options :
 | `--offline` | reconstruit la base à partir de `data/raw/` sans retélécharger |
 | `--sample-start 2026-12-14` | début de la fenêtre d'échantillonnage du jour type (par défaut : aujourd'hui). Utile pour étudier les horaires d'après le **changement de service de mi-décembre**. |
 | `--weeks 4` | nombre de semaines échantillonnées |
-| `--out chemin.duckdb` | emplacement de la base |
+| `--dsn postgresql://…` | base à remplir (défaut : `CHECKEO_DATABASE_URL`) |
+| `--schema checkeo` | schéma à (re)construire (défaut : `CHECKEO_PG_SCHEMA`, sinon `checkeo`) |
 
 Le rapport affiché en fin d'exécution liste les libellés de régularité que l'on n'a pas pu
 rapprocher d'une gare. Pour corriger un rapprochement, complétez
 `backend/checkeo/ingest/regularity_overrides.csv`.
 
-Variables d'environnement : `CHECKEO_DATA_DIR`, `CHECKEO_DB`, `CHECKEO_CORS`.
+Variables d'environnement : `CHECKEO_DATABASE_URL`, `CHECKEO_PG_SCHEMA`, `CHECKEO_DATA_DIR`,
+`CHECKEO_CORS`.
 
 ## Inspecter les données
 
+Ouvrez la base dans pgAdmin et parcourez le schéma `checkeo`.
+
+## Tests
+
 ```bash
 cd backend
-uv run python -m checkeo.ui          # http://localhost:4213, lecture seule
+uv run pytest
 ```
 
-Ouvre `data/checkeo.duckdb` dans l'[interface web DuckDB](https://duckdb.org/docs/stable/core_extensions/ui)
-(extension `ui`, téléchargée au premier lancement). En lecture seule, elle peut tourner en même
-temps que l'API. Ctrl+C pour arrêter.
+Les tests qui utilisent la base demandent un PostgreSQL : définissez
+`CHECKEO_TEST_DATABASE_URL`, sinon ils sont ignorés. Chaque exécution travaille dans un schéma
+jetable `checkeo_test_…`, supprimé à la fin. Par exemple :
 
-| Option | Effet |
-|---|---|
-| `--db chemin.duckdb` | base à ouvrir (défaut : `CHECKEO_DB`) |
-| `--port 4213` | port local de l'interface |
-| `--write` | ouvre la base en écriture |
-
-Avec la CLI DuckDB installée, `duckdb -ui data/checkeo.duckdb` fait la même chose.
+```bash
+docker run -d --rm --name checkeo-pg -p 55432:5432 -e POSTGRES_PASSWORD=pg postgres:17
+CHECKEO_TEST_DATABASE_URL=postgresql://postgres:pg@localhost:55432/postgres uv run pytest
+```
 
 ## Lancer l'application
 
@@ -117,23 +133,25 @@ Trois jobs, une image chacun (`deploy/`), poussées sur le registre privé `192.
 |---|---|---|---|
 | `checkeo-frontend` | `checkeo-frontend` | fichiers statiques du frontend | `http://checkeo.enopt.ovh` |
 | `checkeo-backend` | `checkeo-backend` | API FastAPI, base en lecture seule | `http://checkeo.enopt.ovh/api`, `/docs` |
-| `checkeo-database` | `checkeo-database` | ingestion au démarrage, puis interface web DuckDB | `http://checkeo-db.enopt.ovh` (réseau local uniquement) |
+| `checkeo-ingest` | `checkeo-ingest` | job batch : ingestion dans PostgreSQL | — |
 
-La base est partagée par le host volume `checkeo-data`, à créer une fois :
+Les deux jobs lisent le DSN de la base dans une variable Nomad, à créer une fois pour chacun :
 
 ```bash
 export NOMAD_ADDR=http://192.168.1.21:4646 NOMAD_TOKEN=…
-sed -n 's/^#> //p' deploy/database.nomad.hcl | nomad volume create -
+nomad var put nomad/jobs/checkeo-ingest  database_url='postgresql://…'
+nomad var put nomad/jobs/checkeo-backend database_url='postgresql://…'
 ```
 
 Construction, push et déploiement (tag = commit court) :
 
 ```bash
-deploy/deploy.sh all              # ou frontend | backend | database ; --no-run pour seulement pousser
+deploy/deploy.sh all              # ou frontend | backend | ingest ; --no-run pour seulement pousser
 ```
 
-Mise à jour des données : `nomad job restart -yes checkeo-database` relance l'ingestion, puis
-`nomad job restart -yes checkeo-backend` (l'API garde l'ancienne base ouverte jusqu'au redémarrage).
+Mise à jour des données : `nomad job run -var image=… deploy/ingest.nomad.hcl` (ou
+`deploy/deploy.sh ingest`) relance l'ingestion, puis `nomad job restart -yes checkeo-backend`
+(l'API garde en mémoire les gares et la régularité jusqu'au redémarrage).
 
 ## API
 
@@ -229,7 +247,7 @@ Les données SNCF sont publiées par **SNCF Voyageurs** et **SNCF Gares & Connex
 [ressources.data.sncf.com](https://ressources.data.sncf.com) sous **Open Database License
 (ODbL) 1.0**.
 - Toute réutilisation doit citer la source.
-- Toute base de données dérivée, comme `data/checkeo.duckdb`, doit être partagée sous la même
+- Toute base de données dérivée, comme le schéma PostgreSQL `checkeo`, doit être partagée sous la même
   licence.
 
 L'application affiche ces mentions dans son pied de page.
@@ -261,11 +279,10 @@ L'application affiche ces mentions dans son pied de page.
 
 ```
 backend/checkeo/
-  ingest/   téléchargement, normalisation GTFS, gares, régularité, construction DuckDB
+  ingest/   téléchargement, normalisation GTFS, gares, régularité, chargement PostgreSQL
   core/     logique pure, testée : horaires GTFS, calendriers, trajets directs, jour type,
             indicateurs, fiabilité
-  service.py  requêtes DuckDB et assemblage d'un profil
-  ui.py     lancement de l'interface web DuckDB sur la base
+  service.py  requêtes PostgreSQL et assemblage d'un profil
   api/      FastAPI
 frontend/src/  Vue 3 + Vuetify 3 + ECharts
 ```

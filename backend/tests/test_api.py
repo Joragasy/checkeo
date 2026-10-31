@@ -7,8 +7,9 @@ from .conftest import ALPHA, PARIS
 
 
 @pytest.fixture(scope="module")
-def client(db_path, tmp_path_factory):
-    app = create_app(db_path, static_dir=tmp_path_factory.mktemp("nostatic") / "absent")
+def client(db, tmp_path_factory):
+    dsn, schema = db
+    app = create_app(dsn, schema, static_dir=tmp_path_factory.mktemp("nostatic") / "absent")
     with TestClient(app) as c:
         yield c
 

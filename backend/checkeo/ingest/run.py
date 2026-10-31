@@ -6,11 +6,10 @@ import argparse
 import datetime as dt
 import json
 import logging
-from pathlib import Path
 
 import pandas as pd
 
-from ..config import DATA_DIR, DB_PATH
+from ..config import DATA_DIR, DATABASE_URL, PG_SCHEMA, check_dsn
 from .build import build_database
 from .download import download_all
 
@@ -21,8 +20,13 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--sample-start", type=dt.date.fromisoformat, default=None,
                    help="début de la fenêtre d'échantillonnage du jour type (défaut : aujourd'hui)")
     p.add_argument("--weeks", type=int, default=4, help="nombre de semaines échantillonnées (défaut 4)")
-    p.add_argument("--out", type=Path, default=DB_PATH)
+    p.add_argument("--dsn", default=DATABASE_URL, help="base PostgreSQL (défaut : CHECKEO_DATABASE_URL)")
+    p.add_argument("--schema", default=PG_SCHEMA, help="schéma à (re)construire (défaut : CHECKEO_PG_SCHEMA ou checkeo)")
     args = p.parse_args(argv)
+    try:
+        check_dsn(args.dsn)
+    except ValueError as e:
+        p.error(str(e))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     raw = DATA_DIR / "raw"
@@ -38,7 +42,8 @@ def main(argv: list[str] | None = None) -> None:
         tgv=pd.read_parquet(raw / "tgv.parquet"),
         ter=pd.read_parquet(raw / "ter.parquet"),
         intercites=pd.read_parquet(raw / "intercites.parquet"),
-        out_path=args.out,
+        dsn=args.dsn,
+        schema=args.schema,
         sample_start=args.sample_start,
         weeks=args.weeks,
         sources=sources,
