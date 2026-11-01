@@ -15,7 +15,7 @@ withDefaults(defineProps<{ overlap?: boolean }>(), { overlap: true })
       class="hero-credit"
       href="https://commons.wikimedia.org/wiki/File:SNCF_TGV_Duplex_Viaduc_de_Cize_-_Bolozon.jpg"
       target="_blank" rel="noopener"
-    >Photo : Kabelleger / David Gubler, CC BY-SA 3.0 (recadrée)</a>
+    >Photo : Kabelleger / David Gubler</a>
   </section>
 </template>
 
