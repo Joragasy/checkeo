@@ -26,12 +26,7 @@ const FEATURES = [
     icon: 'mdi-city-variant-outline',
     title: 'Une gare ou une ville entière',
     text: 'Comparez « Lille » et « Paris » toutes gares confondues, ou ciblez une gare précise. TGV, Intercités et TER.',
-  },
-  {
-    icon: 'mdi-cellphone-link',
-    title: 'Partout, en clair ou sombre',
-    text: "Interface adaptée au mobile, mode sombre, et lien partageable qui retrouve exactement votre recherche.",
-  },
+  }
 ]
 </script>
 

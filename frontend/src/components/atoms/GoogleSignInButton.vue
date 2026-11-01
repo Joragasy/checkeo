@@ -6,7 +6,9 @@ import { useThemePreference } from '../../composables/useThemePreference'
 const props = withDefaults(defineProps<{
   size?: 'large' | 'medium' | 'small'
   shape?: 'rectangular' | 'pill'
-}>(), { size: 'large', shape: 'pill' })
+  text?: 'signin_with' | 'signup_with' | 'continue_with'
+  width?: number
+}>(), { size: 'large', shape: 'pill', text: 'continue_with' })
 
 const { googleId } = useAuth()
 const { isDark } = useThemePreference()
@@ -22,7 +24,8 @@ async function render() {
     el.value.innerHTML = ''
     id.renderButton(el.value, {
       type: 'standard',
-      text: 'continue_with',
+      text: props.text,
+      width: props.width,
       theme: isDark.value ? 'filled_black' : 'outline',
       size: props.size,
       shape: props.shape,
@@ -35,7 +38,7 @@ async function render() {
 }
 
 onMounted(render)
-watch(isDark, render)
+watch([isDark, () => props.text], render)
 </script>
 
 <template>

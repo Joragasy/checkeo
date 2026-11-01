@@ -172,7 +172,7 @@ const post = <T>(path: string, body: unknown = {}) =>
     body: JSON.stringify(body),
   })
 
-// ---------------------------------------------------------------- comptes (connexion Google)
+// ---------------------------------------------------------------- comptes (mot de passe ou Google)
 export interface AuthUser {
   id: number
   email: string
@@ -190,6 +190,14 @@ export async function fetchMe(): Promise<AuthUser | null> {
 
 /** Échange le jeton d'identité Google contre une session (crée le compte à la première connexion). */
 export const signInWithGoogle = (credential: string) => post<AuthUser>('auth/google', { credential })
+
+/** Inscription par e-mail et mot de passe (ouvre la session). */
+export const signUpWithPassword = (body: { email: string; password: string; name?: string }) =>
+  post<AuthUser>('auth/signup', body)
+
+/** Connexion par e-mail et mot de passe. */
+export const signInWithPassword = (body: { email: string; password: string }) =>
+  post<AuthUser>('auth/login', body)
 
 export const signOut = () => post<{ status: string }>('auth/logout')
 

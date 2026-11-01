@@ -5,6 +5,8 @@
     GET /api/connections?from=city:59350&day_type=weekday&direction=outbound
     GET /api/meta
     POST /api/auth/google  {"credential": "<jeton d'identité Google>"}
+    POST /api/auth/signup  {"email": "…", "password": "…", "name": "…"}
+    POST /api/auth/login   {"email": "…", "password": "…"}
     GET  /api/auth/me
     POST /api/auth/logout
 
@@ -90,20 +92,48 @@ def create_app(dsn: str | None = None, schema: str | None = None, static_dir: Pa
         return {"status": "ok"}
 
     # ------------------------------------------------------------------ comptes
+    def open_session(request: Request, response: Response, user: dict[str, Any]) -> dict[str, Any]:
+        token = request.app.state.auth.create_session(user["id"])
+        response.set_cookie(
+            SESSION_COOKIE, token, max_age=SESSION_DAYS * 86400, path="/",
+            httponly=True, secure=COOKIE_SECURE, samesite="lax",
+        )
+        return user
+
     @app.post("/api/auth/google")
     def auth_google(request: Request, response: Response, credential: Annotated[str, Body(embed=True)]):
         try:
             claims = auth.verify_google_credential(credential, GOOGLE_CLIENT_ID)
         except auth.InvalidCredential as e:
             raise HTTPException(400, str(e)) from e
-        store: auth.AuthStore = request.app.state.auth
-        user = store.upsert_user(claims)
-        token = store.create_session(user["id"])
-        response.set_cookie(
-            SESSION_COOKIE, token, max_age=SESSION_DAYS * 86400, path="/",
-            httponly=True, secure=COOKIE_SECURE, samesite="lax",
-        )
-        return user
+        return open_session(request, response, request.app.state.auth.upsert_user(claims))
+
+    @app.post("/api/auth/signup", status_code=201)
+    def auth_signup(
+        request: Request, response: Response,
+        email: Annotated[str, Body(max_length=254)],
+        password: Annotated[str, Body(max_length=auth.PASSWORD_MAX)],
+        name: Annotated[str | None, Body(max_length=120)] = None,
+    ):
+        try:
+            user = request.app.state.auth.create_password_user(email, password, name)
+        except auth.InvalidInput as e:
+            raise HTTPException(422, str(e)) from e
+        except auth.EmailTaken as e:
+            raise HTTPException(409, str(e)) from e
+        return open_session(request, response, user)
+
+    @app.post("/api/auth/login")
+    def auth_login(
+        request: Request, response: Response,
+        email: Annotated[str, Body(max_length=254)],
+        password: Annotated[str, Body(max_length=auth.PASSWORD_MAX)],
+    ):
+        try:
+            user = request.app.state.auth.authenticate_password(email, password)
+        except auth.InvalidCredential as e:
+            raise HTTPException(401, str(e)) from e
+        return open_session(request, response, user)
 
     @app.get("/api/auth/me")
     def auth_me(user: Annotated[dict, Depends(current_user)]):

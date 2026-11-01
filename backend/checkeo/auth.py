@@ -1,16 +1,21 @@
-"""Comptes et sessions : connexion avec Google (jeton d'identité vérifié côté serveur).
+"""Comptes et sessions : connexion par e-mail et mot de passe, ou avec Google.
 
-La première connexion crée le compte (inscription) ; les suivantes le mettent à jour.
+Google : le jeton d'identité est vérifié côté serveur ; la première connexion crée le compte, ou le
+rattache au compte existant de même adresse (l'adresse Google est vérifiée).
+Mot de passe : haché avec scrypt (sel aléatoire par compte).
 Seule l'empreinte SHA-256 du jeton de session est stockée en base.
 """
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import hashlib
+import hmac
 import secrets
 from typing import Any
 
+import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -20,6 +25,61 @@ from .config import check_dsn
 
 class InvalidCredential(Exception):
     pass
+
+
+class EmailTaken(Exception):
+    pass
+
+
+class InvalidInput(ValueError):
+    pass
+
+
+# ---------------------------------------------------------------- mots de passe
+PASSWORD_MIN, PASSWORD_MAX = 8, 128
+_SCRYPT = {"n": 2**14, "r": 8, "p": 1}
+
+
+def _b64(b: bytes) -> str:
+    return base64.b64encode(b).decode()
+
+
+def hash_password(password: str) -> str:
+    """Empreinte scrypt au format scrypt$n$r$p$sel$empreinte (base64)."""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, dklen=32, **_SCRYPT)
+    return f"scrypt${_SCRYPT['n']}${_SCRYPT['r']}${_SCRYPT['p']}${_b64(salt)}${_b64(digest)}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        algo, n, r, p, salt, digest = stored.split("$")
+        if algo != "scrypt":
+            return False
+        expected = base64.b64decode(digest)
+        got = hashlib.scrypt(password.encode(), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p),
+                             dklen=len(expected))
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(got, expected)
+
+
+# Empreinte factice : un e-mail inconnu coûte autant qu'un mauvais mot de passe.
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
+
+
+def normalize_email(email: str) -> str:
+    email = email.strip().lower()
+    local, _, domain = email.partition("@")
+    if not local or "." not in domain or len(email) > 254 or any(c.isspace() for c in email):
+        raise InvalidInput("Adresse e-mail invalide.")
+    return email
+
+
+def check_password(password: str) -> str:
+    if not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
+        raise InvalidInput(f"Le mot de passe doit contenir entre {PASSWORD_MIN} et {PASSWORD_MAX} caractères.")
+    return password
 
 
 def verify_google_credential(credential: str, client_id: str) -> dict[str, Any]:
@@ -77,19 +137,70 @@ class AuthStore:
                     created_at timestamptz NOT NULL DEFAULT now(),
                     expires_at timestamptz NOT NULL
                 )""")
+            # Comptes par mot de passe (google_sub nul) ; une seule adresse par compte.
+            con.execute("ALTER TABLE users ALTER COLUMN google_sub DROP NOT NULL")
+            con.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email))")
 
     def upsert_user(self, claims: dict[str, Any]) -> dict[str, Any]:
-        with self.pool.connection() as con:
-            return con.execute(
-                """INSERT INTO users AS u (google_sub, email, name, picture)
-                   VALUES (%(sub)s, %(email)s, %(name)s, %(picture)s)
-                   ON CONFLICT (google_sub) DO UPDATE
-                   SET email = EXCLUDED.email, name = EXCLUDED.name, picture = EXCLUDED.picture,
-                       last_login_at = now()
-                   RETURNING """ + USER_COLUMNS,
-                {"sub": claims["sub"], "email": claims["email"], "name": claims.get("name"),
-                 "picture": claims.get("picture")},
+        """Connexion Google : compte du même sub, sinon de la même adresse (rattaché), sinon nouveau."""
+        params = {"sub": claims["sub"], "email": normalize_email(claims["email"]),
+                  "name": claims.get("name"), "picture": claims.get("picture")}
+        with self.pool.connection() as con, con.transaction():
+            row = con.execute(
+                """SELECT id FROM users WHERE google_sub = %(sub)s
+                   UNION ALL
+                   SELECT id FROM users WHERE google_sub IS NULL AND lower(email) = %(email)s
+                   LIMIT 1""",
+                params,
             ).fetchone()
+            if row is None:
+                return con.execute(
+                    """INSERT INTO users AS u (google_sub, email, name, picture)
+                       VALUES (%(sub)s, %(email)s, %(name)s, %(picture)s)
+                       RETURNING """ + USER_COLUMNS,
+                    params,
+                ).fetchone()
+            return con.execute(
+                """UPDATE users AS u
+                   SET google_sub = %(sub)s, email = %(email)s, name = coalesce(%(name)s, u.name),
+                       picture = %(picture)s, last_login_at = now()
+                   WHERE id = %(id)s
+                   RETURNING """ + USER_COLUMNS,
+                {**params, "id": row["id"]},
+            ).fetchone()
+
+    def create_password_user(self, email: str, password: str, name: str | None = None) -> dict[str, Any]:
+        """Inscription par e-mail ; EmailTaken si l'adresse a déjà un compte."""
+        email = normalize_email(email)
+        password_hash = hash_password(check_password(password))
+        name = (name or "").strip()[:120] or None
+        try:
+            with self.pool.connection() as con:
+                return con.execute(
+                    "INSERT INTO users AS u (email, name, password_hash) VALUES (%s, %s, %s) RETURNING "
+                    + USER_COLUMNS,
+                    (email, name, password_hash),
+                ).fetchone()
+        except psycopg.errors.UniqueViolation as e:
+            raise EmailTaken("Un compte existe déjà avec cette adresse.") from e
+
+    def authenticate_password(self, email: str, password: str) -> dict[str, Any]:
+        """Connexion par e-mail ; InvalidCredential sans distinguer adresse inconnue et mauvais mot de passe."""
+        try:
+            email = normalize_email(email)
+        except InvalidInput:
+            email = ""
+        with self.pool.connection() as con:
+            row = con.execute(
+                f"SELECT {USER_COLUMNS}, u.password_hash FROM users u WHERE lower(u.email) = %s", (email,)
+            ).fetchone()
+            stored = row["password_hash"] if row and row["password_hash"] else _DUMMY_HASH
+            if not verify_password(password, stored) or row is None or not row["password_hash"]:
+                raise InvalidCredential("E-mail ou mot de passe incorrect.")
+            con.execute("UPDATE users SET last_login_at = now() WHERE id = %s", (row["id"],))
+        del row["password_hash"]
+        return row
 
     def create_session(self, user_id: int) -> str:
         token = secrets.token_urlsafe(32)

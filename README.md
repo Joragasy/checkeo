@@ -46,12 +46,20 @@ Le fichier est ignoré par git mais copié dans l'image Docker du frontend. La c
 dans le JavaScript servi : restreignez-la à votre domaine depuis le tableau de bord CARTO. Sans
 clé, la carte se rabat sur les tuiles OpenStreetMap.
 
-### Connexion avec Google
+### Connexion (e-mail et mot de passe, ou Google)
 
-L'application est réservée aux utilisateurs connectés avec un compte Google (la première connexion
-crée le compte). Sans session, le site affiche une page d'accueil qui présente les fonctionnalités,
-et l'API refuse les routes de données (`/api/stations`, `/api/profile`, `/api/connections`) avec
+L'application est réservée aux utilisateurs connectés. La page `#/connexion` (ou `#/inscription`),
+ouverte par l'icône de compte de l'en-tête, propose deux méthodes :
+
+- **E-mail et mot de passe** : `POST /api/auth/signup` crée le compte, `POST /api/auth/login` ouvre la
+  session. Les mots de passe (8 à 128 caractères) sont hachés avec scrypt.
+- **Google** : `POST /api/auth/google` ; la première connexion crée le compte, ou le rattache au compte
+  existant de même adresse e-mail.
+
+Sans session, le site affiche une page d'accueil qui présente les fonctionnalités, et l'API refuse les routes de données (`/api/stations`, `/api/profile`, `/api/connections`) avec
 une erreur 401.
+
+Pour activer la connexion Google :
 
 1. Dans la [Google Cloud Console](https://console.cloud.google.com/apis/credentials), créez un
    identifiant **ID client OAuth** de type « Application Web ».

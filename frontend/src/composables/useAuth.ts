@@ -1,22 +1,31 @@
 import { computed, ref } from 'vue'
-import { fetchMe, onUnauthorized, signInWithGoogle, signOut, type AuthUser } from '../api'
+import {
+  fetchMe, onUnauthorized, signInWithGoogle, signInWithPassword, signOut, signUpWithPassword, type AuthUser,
+} from '../api'
 
 // ---------------------------------------------------------------- état partagé de la session
 const user = ref<AuthUser | null>(null)
 const ready = ref(false)
 const error = ref<string | null>(null)
+const pending = ref(false)
 let googleInitialized = false
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
 
-async function handleCredential(credential: string) {
+/** Ouvre la session avec l'appel donné ; l'erreur éventuelle est exposée dans `error`. */
+async function signIn(call: () => Promise<AuthUser>) {
   error.value = null
+  pending.value = true
   try {
-    user.value = await signInWithGoogle(credential)
+    user.value = await call()
   } catch (e) {
     error.value = (e as Error).message
+  } finally {
+    pending.value = false
   }
 }
+
+const handleCredential = (credential: string) => signIn(() => signInWithGoogle(credential))
 
 /** Attend le script Google Identity Services (chargé en async dans index.html). */
 function waitForGoogle(timeoutMs = 10000): Promise<NonNullable<Window['google']>> {
@@ -66,10 +75,19 @@ export function useAuth() {
     user.value = null
   }
 
+  const loginWithPassword = (email: string, password: string) =>
+    signIn(() => signInWithPassword({ email, password }))
+
+  const registerWithPassword = (email: string, password: string, name?: string) =>
+    signIn(() => signUpWithPassword({ email, password, name: name || undefined }))
+
   return {
     user,
     ready,
     error,
+    pending,
+    loginWithPassword,
+    registerWithPassword,
     isSignedIn: computed(() => user.value !== null),
     initAuth,
     logout,
