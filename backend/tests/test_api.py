@@ -1,7 +1,9 @@
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg import sql
 
-from checkeo.api.main import create_app
+from checkeo.api.main import create_app, current_user
 
 from .conftest import ALPHA, PARIS
 
@@ -9,9 +11,13 @@ from .conftest import ALPHA, PARIS
 @pytest.fixture(scope="module")
 def client(db, tmp_path_factory):
     dsn, schema = db
-    app = create_app(dsn, schema, static_dir=tmp_path_factory.mktemp("nostatic") / "absent")
+    app = create_app(dsn, schema, static_dir=tmp_path_factory.mktemp("nostatic") / "absent",
+                     auth_schema=f"{schema}_auth")
+    app.dependency_overrides[current_user] = lambda: {"id": 0, "email": "test@example.com"}
     with TestClient(app) as c:
         yield c
+    with psycopg.connect(dsn, autocommit=True) as con:
+        con.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(f"{schema}_auth")))
 
 
 def test_stations(client):

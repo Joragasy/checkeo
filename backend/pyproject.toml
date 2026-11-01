@@ -11,6 +11,8 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "holidays>=0.58",
+    "google-auth>=2.35",
+    "requests>=2.32",
 ]
 
 [dependency-groups]

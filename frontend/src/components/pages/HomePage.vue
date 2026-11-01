@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { fetchMeta, fetchProfile, type DayType, type Meta, type Profile, type StationHit } from '../../api'
-import { useThemePreference } from '../../composables/useThemePreference'
 import IntroPrompt from '../molecules/IntroPrompt.vue'
 import ProfileSummary from '../molecules/ProfileSummary.vue'
 import ConnectionsMap from '../organisms/ConnectionsMap.vue'
@@ -9,8 +8,6 @@ import HeroBanner from '../organisms/HeroBanner.vue'
 import ProfileResults from '../organisms/ProfileResults.vue'
 import SearchCard from '../organisms/SearchCard.vue'
 import DefaultLayout from '../templates/DefaultLayout.vue'
-
-const { initTheme } = useThemePreference()
 
 // ---------------------------------------------------------------- formulaire
 const home = ref<StationHit | null>(null)
@@ -88,7 +85,6 @@ function example() {
 }
 
 onMounted(async () => {
-  initTheme()
   readUrl()
   try { meta.value = await fetchMeta() } catch { /* le pied de page reste minimal */ }
 })

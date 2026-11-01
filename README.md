@@ -46,6 +46,28 @@ Le fichier est ignoré par git mais copié dans l'image Docker du frontend. La c
 dans le JavaScript servi : restreignez-la à votre domaine depuis le tableau de bord CARTO. Sans
 clé, la carte se rabat sur les tuiles OpenStreetMap.
 
+### Connexion avec Google
+
+L'application est réservée aux utilisateurs connectés avec un compte Google (la première connexion
+crée le compte). Sans session, le site affiche une page d'accueil qui présente les fonctionnalités,
+et l'API refuse les routes de données (`/api/stations`, `/api/profile`, `/api/connections`) avec
+une erreur 401.
+
+1. Dans la [Google Cloud Console](https://console.cloud.google.com/apis/credentials), créez un
+   identifiant **ID client OAuth** de type « Application Web ».
+2. Dans **Origines JavaScript autorisées**, ajoutez `https://checkeo.enopt.ovh` et
+   `http://localhost:5173`. Google n'accepte HTTP que pour `localhost`.
+3. Côté frontend, dans `frontend/.env.local` : `VITE_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com`
+4. Côté backend : `export CHECKEO_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com`. En développement
+   sur `http://localhost`, ajoutez `export CHECKEO_COOKIE_SECURE=0`, sinon le navigateur n'envoie
+   pas le cookie de session.
+
+En production, ajoutez `google_client_id` à la variable Nomad `nomad/jobs/checkeo-backend`.
+
+Les comptes et les sessions sont stockés dans le schéma `checkeo_auth` (`CHECKEO_AUTH_SCHEMA`), créé
+au démarrage de l'API. L'ingestion n'y touche pas. Les sessions durent 30 jours
+(`CHECKEO_SESSION_DAYS`).
+
 ## Base de données
 
 Les données sont stockées dans une base PostgreSQL existante, dans le schéma `checkeo`.
@@ -86,7 +108,8 @@ rapprocher d'une gare. Pour corriger un rapprochement, complétez
 `backend/checkeo/ingest/regularity_overrides.csv`.
 
 Variables d'environnement : `CHECKEO_DATABASE_URL`, `CHECKEO_PG_SCHEMA`, `CHECKEO_DATA_DIR`,
-`CHECKEO_CORS`.
+`CHECKEO_CORS`, `CHECKEO_GOOGLE_CLIENT_ID`, `CHECKEO_AUTH_SCHEMA`, `CHECKEO_COOKIE_SECURE`,
+`CHECKEO_SESSION_DAYS`.
 
 ## Inspecter les données
 

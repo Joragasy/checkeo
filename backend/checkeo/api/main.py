@@ -4,6 +4,11 @@
     GET /api/profile?from=city:59350&to=city:75056&day_type=weekday&bin=60&arrive_by=09:00&leave_after=18:00
     GET /api/connections?from=city:59350&day_type=weekday&direction=outbound
     GET /api/meta
+    POST /api/auth/google  {"credential": "<jeton d'identité Google>"}
+    GET  /api/auth/me
+    POST /api/auth/logout
+
+Toutes les routes de données (stations, profile, connections) demandent une session.
 """
 
 from __future__ import annotations
@@ -16,12 +21,13 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ..config import DATABASE_URL, PG_SCHEMA, ROOT
+from .. import auth
+from ..config import AUTH_SCHEMA, COOKIE_SECURE, DATABASE_URL, GOOGLE_CLIENT_ID, PG_SCHEMA, ROOT, SESSION_DAYS
 from ..core.gtfs_time import parse_hhmm
 from ..service import BadRequest, Checkeo, NotFound
 
@@ -45,19 +51,36 @@ class JSON(JSONResponse):
         return json.dumps(content, default=_default, ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
-def create_app(dsn: str | None = None, schema: str | None = None, static_dir: Path | None = None) -> FastAPI:
+SESSION_COOKIE = "checkeo_session"
+
+
+def current_user(request: Request) -> dict[str, Any]:
+    """Utilisateur de la session (cookie), sinon 401."""
+    token = request.cookies.get(SESSION_COOKIE)
+    user = request.app.state.auth.user_for_token(token) if token else None
+    if user is None:
+        raise HTTPException(401, "Connexion requise")
+    return user
+
+
+def create_app(dsn: str | None = None, schema: str | None = None, static_dir: Path | None = None,
+               auth_schema: str | None = None) -> FastAPI:
     dsn = dsn or DATABASE_URL
     schema = schema or PG_SCHEMA
+    auth_schema = auth_schema or AUTH_SCHEMA
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.service = Checkeo(dsn, schema)
+        app.state.auth = auth.AuthStore(dsn, auth_schema, SESSION_DAYS)
         yield
+        app.state.auth.close()
         app.state.service.close()
 
     app = FastAPI(title="Checkeo", version="0.1.0", default_response_class=JSON, lifespan=lifespan)
     origins = os.environ.get("CHECKEO_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
-    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET"], allow_headers=["*"])
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
+                       allow_headers=["*"], allow_credentials=True)
 
     def service(request: Request) -> Checkeo:
         return request.app.state.service
@@ -66,12 +89,40 @@ def create_app(dsn: str | None = None, schema: str | None = None, static_dir: Pa
     def health():
         return {"status": "ok"}
 
-    @app.get("/api/stations")
+    # ------------------------------------------------------------------ comptes
+    @app.post("/api/auth/google")
+    def auth_google(request: Request, response: Response, credential: Annotated[str, Body(embed=True)]):
+        try:
+            claims = auth.verify_google_credential(credential, GOOGLE_CLIENT_ID)
+        except auth.InvalidCredential as e:
+            raise HTTPException(400, str(e)) from e
+        store: auth.AuthStore = request.app.state.auth
+        user = store.upsert_user(claims)
+        token = store.create_session(user["id"])
+        response.set_cookie(
+            SESSION_COOKIE, token, max_age=SESSION_DAYS * 86400, path="/",
+            httponly=True, secure=COOKIE_SECURE, samesite="lax",
+        )
+        return user
+
+    @app.get("/api/auth/me")
+    def auth_me(user: Annotated[dict, Depends(current_user)]):
+        return user
+
+    @app.post("/api/auth/logout")
+    def auth_logout(request: Request, response: Response):
+        token = request.cookies.get(SESSION_COOKIE)
+        if token:
+            request.app.state.auth.delete_session(token)
+        response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, secure=COOKIE_SECURE, samesite="lax")
+        return {"status": "ok"}
+
+    @app.get("/api/stations", dependencies=[Depends(current_user)])
     def stations(request: Request, q: Annotated[str, Query(min_length=1, max_length=80)],
                  limit: Annotated[int, Query(ge=1, le=50)] = 10):
         return {"results": service(request).search_stations(q, limit)}
 
-    @app.get("/api/profile")
+    @app.get("/api/profile", dependencies=[Depends(current_user)])
     def profile(
         request: Request,
         from_: Annotated[str, Query(alias="from", description="id de ville (city:…) ou de gare (StopArea:…)")],
@@ -98,7 +149,7 @@ def create_app(dsn: str | None = None, schema: str | None = None, static_dir: Pa
         except BadRequest as e:
             raise HTTPException(400, str(e)) from e
 
-    @app.get("/api/connections")
+    @app.get("/api/connections", dependencies=[Depends(current_user)])
     def connections(
         request: Request,
         from_: Annotated[str, Query(alias="from", description="id de ville (city:…) ou de gare (StopArea:…)")],

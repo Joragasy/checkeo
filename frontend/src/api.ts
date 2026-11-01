@@ -139,9 +139,16 @@ export interface ProfileParams {
   include_buses: boolean
 }
 
-async function get<T>(path: string, params: Record<string, string | number | boolean>, signal?: AbortSignal): Promise<T> {
-  const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
-  const r = await fetch(`/api/${path}?${qs}`, { signal })
+// ---------------------------------------------------------------- session expirée
+let unauthorizedHandler: (() => void) | null = null
+/** Appelé quand une route de données répond 401 (session absente ou expirée). */
+export function onUnauthorized(handler: () => void) {
+  unauthorizedHandler = handler
+}
+
+async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const r = await fetch(url, { credentials: 'same-origin', ...init })
+  if (r.status === 401 && !url.startsWith('/api/auth/')) unauthorizedHandler?.()
   if (!r.ok) {
     let detail = `Erreur ${r.status}`
     try {
@@ -152,6 +159,39 @@ async function get<T>(path: string, params: Record<string, string | number | boo
   }
   return r.json() as Promise<T>
 }
+
+async function get<T>(path: string, params: Record<string, string | number | boolean>, signal?: AbortSignal): Promise<T> {
+  const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
+  return request<T>(`/api/${path}?${qs}`, { signal })
+}
+
+const post = <T>(path: string, body: unknown = {}) =>
+  request<T>(`/api/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+// ---------------------------------------------------------------- comptes (connexion Google)
+export interface AuthUser {
+  id: number
+  email: string
+  name: string | null
+  picture: string | null
+}
+
+/** Utilisateur connecté, ou null sans session. */
+export async function fetchMe(): Promise<AuthUser | null> {
+  const r = await fetch('/api/auth/me', { credentials: 'same-origin' })
+  if (r.status === 401) return null
+  if (!r.ok) throw new Error(`Erreur ${r.status}`)
+  return r.json() as Promise<AuthUser>
+}
+
+/** Échange le jeton d'identité Google contre une session (crée le compte à la première connexion). */
+export const signInWithGoogle = (credential: string) => post<AuthUser>('auth/google', { credential })
+
+export const signOut = () => post<{ status: string }>('auth/logout')
 
 export const searchStations = (q: string, signal?: AbortSignal) =>
   get<{ results: StationHit[] }>('stations', { q, limit: 12 }, signal).then((r) => r.results)

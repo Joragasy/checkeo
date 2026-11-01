@@ -60,17 +60,20 @@ job "checkeo-backend" {
         ports              = ["http"]
       }
 
-      # DSN de la base : voir deploy/ingest.nomad.hcl.
+      # DSN de la base (voir deploy/ingest.nomad.hcl) et identifiant client OAuth Google.
       template {
         destination = "secrets/db.env"
         env         = true
         data        = <<-EOT
-          {{ with nomadVar "nomad/jobs/checkeo-backend" }}CHECKEO_DATABASE_URL={{ .database_url }}{{ end }}
+          {{ with nomadVar "nomad/jobs/checkeo-backend" }}
+          CHECKEO_DATABASE_URL={{ .database_url }}
+          CHECKEO_GOOGLE_CLIENT_ID={{ .google_client_id }}
+          {{ end }}
         EOT
       }
 
       env {
-        CHECKEO_CORS = "http://checkeo.enopt.ovh"
+        CHECKEO_CORS = "https://checkeo.enopt.ovh"
       }
 
       resources {

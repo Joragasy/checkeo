@@ -18,3 +18,12 @@ def check_dsn(dsn: str | None) -> str:
             f"CHECKEO_DATABASE_URL invalide ({dsn!r}) : attendu postgresql://utilisateur:motdepasse@hôte:5432/base."
         )
     return dsn
+
+# Connexion Google : identifiant client OAuth (type « Application Web ») et sessions.
+GOOGLE_CLIENT_ID = os.environ.get("CHECKEO_GOOGLE_CLIENT_ID", "813966544536-ggcjidn6vgm9okm93t3kgmul662r5ohc.apps.googleusercontent.com")
+# Schéma des comptes : distinct de PG_SCHEMA, que l'ingestion supprime et remplace.
+AUTH_SCHEMA = os.environ.get("CHECKEO_AUTH_SCHEMA", "checkeo_auth")
+# Cookie de session réservé à HTTPS ; mettre 0 en développement local (http://localhost).
+COOKIE_SECURE = os.environ.get("CHECKEO_COOKIE_SECURE", "1") != "0"
+SESSION_DAYS = int(os.environ.get("CHECKEO_SESSION_DAYS", "30"))
+CHECKEO_COOKIE_SECURE = os.environ.get("CHECKEO_COOKIE_SECURE", "0")

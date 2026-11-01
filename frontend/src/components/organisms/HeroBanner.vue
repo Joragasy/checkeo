@@ -1,9 +1,15 @@
+<script setup lang="ts">
+// overlap : la carte de recherche chevauche le bas du bandeau (page de l'application).
+withDefaults(defineProps<{ overlap?: boolean }>(), { overlap: true })
+</script>
+
 <template>
-  <section class="hero">
+  <section class="hero" :class="{ 'hero--overlap': overlap }">
     <div class="hero-bg" role="img" aria-label="TGV Duplex sur le viaduc de Cize-Bolozon, au-dessus de l'Ain" />
     <div class="hero-inner page mx-auto">
       <h1 class="hero-title">Votre trajet, en un coup d'œil</h1>
       <p class="hero-sub">Trains directs et ponctualité réelle.</p>
+      <slot />
     </div>
     <a
       class="hero-credit"
@@ -39,7 +45,10 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 0 16px 96px;
+  padding: 0 16px 40px;
+}
+.hero--overlap .hero-inner {
+  padding-bottom: 96px;
 }
 .hero-title {
   font-size: clamp(1.6rem, 4vw, 2.75rem);
@@ -76,6 +85,9 @@
     background-position: 40% 55%;
   }
   .hero-inner {
+    padding-bottom: 28px;
+  }
+  .hero--overlap .hero-inner {
     padding-bottom: 88px;
   }
 }
