@@ -13,19 +13,9 @@ const FEATURES = [
     text: "Trains arrivant avant votre heure d'embauche, départs après la débauche, plus long trou de la journée, trains en pointe et durée du trajet.",
   },
   {
-    icon: 'mdi-timer-alert-outline',
-    title: 'Ponctualité réelle',
-    text: "Ponctualité moyenne sur 12 mois publiée par la SNCF, courbe mensuelle, taux d'annulation et causes des retards.",
-  },
-  {
     icon: 'mdi-map-marker-radius-outline',
     title: 'Carte des liaisons directes',
     text: 'Toutes les gares reliées sans changement depuis chez vous, colorées selon le nombre de trains par jour. Un clic pour la choisir.',
-  },
-  {
-    icon: 'mdi-city-variant-outline',
-    title: 'Une gare ou une ville entière',
-    text: 'Comparez « Lille » et « Paris » toutes gares confondues, ou ciblez une gare précise. TGV, Intercités et TER.',
   }
 ]
 </script>
