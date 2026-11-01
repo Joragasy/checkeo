@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Construit, pousse et déploie les images Checkeo sur Nomad.
 #   deploy/deploy.sh [frontend|backend|ingest|all] [--no-run]
+#
+# Chaque lancement reconstruit l'image sans cache et lui donne un tag unique (commit + horodatage) :
+# la spec du job change donc à chaque fois, Nomad crée une nouvelle allocation et le client
+# télécharge forcément l'image fraîche (un tag réutilisé resterait servi depuis son cache local).
 set -euo pipefail
 
 # Registre privé joint directement sur le LAN (job docker-registry sur nomad-client-3), en HTTP :
@@ -10,17 +14,20 @@ export NOMAD_ADDR="${NOMAD_ADDR:-http://192.168.1.21:4646}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAG="$(git -C "$ROOT" rev-parse --short HEAD)"
 if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then TAG="$TAG-dirty"; fi
+TAG="$TAG-$(date -u +%Y%m%d%H%M%S)"
 
 target="${1:-all}"
 run=1
 [ "${2:-}" = "--no-run" ] && run=0
 
 deploy() {
-  local name="$1" image="$REGISTRY/checkeo-$1"
+  local name="$1" image="$REGISTRY/checkeo-$1" digest
   echo "==> $name : $image:$TAG"
-  docker build -f "$ROOT/deploy/$name/Dockerfile" -t "$image:$TAG" -t "$image:latest" "$ROOT"
+  docker build --pull --no-cache -f "$ROOT/deploy/$name/Dockerfile" -t "$image:$TAG" -t "$image:latest" "$ROOT"
   docker push "$image:$TAG"
   docker push "$image:latest"
+  digest="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:$TAG" | grep -m1 "^$image@" || true)"
+  echo "==> $name : image poussée ${digest:-(digest inconnu)}"
   if [ "$run" = 1 ]; then
     nomad job run -var "image=$image:$TAG" "$ROOT/deploy/$name.nomad.hcl"
   fi

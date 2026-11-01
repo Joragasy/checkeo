@@ -6,7 +6,7 @@ const year = new Date().getFullYear()
 </script>
 
 <template>
-  <v-footer border color="surface" class="d-block py-8 px-4">
+  <v-footer border color="surface" class="d-block py-3 px-4">
     <div class="page mx-auto">
       <div class="footer-top">
         <nav class="links" aria-label="Informations légales">
@@ -31,7 +31,7 @@ const year = new Date().getFullYear()
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 24px;
+  gap: 8px 24px;
 }
 .links {
   display: flex;
@@ -47,7 +47,7 @@ const year = new Date().getFullYear()
   line-height: 1.5;
 }
 .links a {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: rgb(var(--v-theme-on-surface));
   opacity: 0.8;
