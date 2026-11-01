@@ -20,21 +20,6 @@ const title = computed(() => (props.kind === 'legal' ? 'Mentions légales' : 'Po
         <p class="text-caption text-medium-emphasis mb-8">Dernière mise à jour : {{ UPDATED }}</p>
 
         <template v-if="kind === 'legal'">
-          <section>
-            <h2>Éditeur du site</h2>
-            <p>
-              Le site Checkeo est édité par <mark>[nom de l'éditeur ou de la société]</mark>,
-              <mark>[forme juridique, capital, n° SIREN/RCS le cas échéant]</mark>,
-              dont le siège est situé <mark>[adresse postale]</mark>.
-            </p>
-            <p>Contact : <mark>[adresse e-mail de contact]</mark></p>
-            <p>Directeur ou directrice de la publication : <mark>[nom]</mark></p>
-          </section>
-
-          <section>
-            <h2>Hébergement</h2>
-            <p><mark>[nom de l'hébergeur]</mark>, <mark>[adresse]</mark>, <mark>[téléphone ou site web]</mark>.</p>
-          </section>
 
           <section>
             <h2>Données utilisées</h2>
@@ -148,7 +133,7 @@ const title = computed(() => (props.kind === 'legal' ? 'Mentions légales' : 'Po
             <p>
               Conformément au RGPD, vous pouvez accéder à vos données, les rectifier, demander leur
               suppression ou la suppression de votre compte, et vous opposer à leur traitement, en écrivant à
-              <mark>[adresse e-mail de contact]</mark>. Vous pouvez également introduire une réclamation
+              <mark>joragasy@gmail.com</mark>. Vous pouvez également introduire une réclamation
               auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener">CNIL</a>.
             </p>
           </section>
