@@ -13,13 +13,11 @@ const year = new Date().getFullYear()
           <a :href="hrefOf('legal')">Mentions légales</a>
           <a :href="hrefOf('privacy')">Confidentialité</a>
         </nav>
+
+        <p class="text-caption text-medium-emphasis mb-0 copyright">
+          © {{ year }} Checkeo. Tous droits réservés.
+        </p>
       </div>
-
-      <v-divider class="my-5" />
-
-      <p class="text-caption text-medium-emphasis mb-0 footer-bottom">
-        © {{ year }} Checkeo. Tous droits réservés.
-      </p>
     </div>
   </v-footer>
 </template>
@@ -31,18 +29,22 @@ const year = new Date().getFullYear()
 .footer-top {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 24px;
-}
-.brand {
-  max-width: 420px;
 }
 .links {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 24px;
-  padding-top: 4px;
+}
+.copyright {
+  margin-left: auto;
+  text-align: right;
+}
+.links a,
+.copyright {
+  line-height: 1.5;
 }
 .links a {
   font-size: 0.875rem;
@@ -58,17 +60,17 @@ const year = new Date().getFullYear()
   text-decoration: underline;
 }
 @media (max-width: 599px) {
-  .footer-top,
-  .footer-bottom {
+  .footer-top {
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
-  .brand > div {
-    justify-content: center;
-  }
   .links {
     justify-content: center;
+  }
+  .copyright {
+    margin-left: 0;
+    text-align: center;
   }
 }
 </style>
