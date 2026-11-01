@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import AppLogo from '../atoms/AppLogo.vue'
 import { useHashView } from '../../composables/useHashView'
 
 const { hrefOf } = useHashView()
