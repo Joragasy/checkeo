@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useTheme } from 'vuetify'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
 import { GridComponent, MarkAreaComponent, TooltipComponent } from 'echarts/components'
 import { SVGRenderer } from 'echarts/renderers'
-import type { Bin } from '../api'
-import { hhmm, hLabel } from '../format'
+import type { Bin } from '../../api'
+import { hhmm, hLabel } from '../../format'
+import { useChartPalette } from '../../composables/useChartPalette'
 
 use([BarChart, GridComponent, TooltipComponent, MarkAreaComponent, SVGRenderer])
 
@@ -18,7 +18,7 @@ const props = defineProps<{
   description: string
 }>()
 
-const theme = useTheme()
+const palette = useChartPalette()
 
 // Plage affichée : de 4h à minuit, élargie si des trains circulent en dehors.
 const shown = computed(() => {
@@ -29,10 +29,7 @@ const shown = computed(() => {
 })
 
 const option = computed(() => {
-  const c = theme.current.value.colors
-  const dark = theme.current.value.dark
-  const muted = dark ? '#a3a299' : '#6b6a66'
-  const grid = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'
+  const { c, dark, muted, grid, text } = palette()
   const bins = shown.value
   const peakIdx = bins
     .map((b, i) => (b.start_s >= props.peak[0] && b.end_s <= props.peak[1] ? i : -1))
@@ -46,7 +43,7 @@ const option = computed(() => {
       axisPointer: { type: 'shadow', shadowStyle: { color: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' } },
       backgroundColor: c.surface,
       borderColor: grid,
-      textStyle: { color: dark ? '#f0efec' : '#0b0b0b', fontSize: 13 },
+      textStyle: { color: text, fontSize: 13 },
       formatter: (ps: { dataIndex: number }[]) => {
         const b = bins[ps[0].dataIndex]
         const n = b.count

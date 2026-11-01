@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { searchStations, type StationHit } from '../api'
+import { searchStations, type StationHit } from '../../api'
+import { MODE_ABBR } from '../../constants/trainModes'
 
 const model = defineModel<StationHit | null>({ required: true })
 defineProps<{ label: string; icon: string }>()
@@ -34,11 +35,7 @@ watch(search, (q) => {
   }, 200)
 })
 
-const MODE_SHORT: Record<string, string> = {
-  'TGV INOUI': 'TGV', OUIGO: 'OUIGO', 'Train TER': 'TER', INTERCITES: 'IC', 'INTERCITES de nuit': 'IC nuit',
-  TramTrain: 'Tram-train', ICE: 'ICE', Lyria: 'Lyria',
-}
-const modes = (m: string[]) => [...new Set(m.map((x) => MODE_SHORT[x]).filter(Boolean))].join(' · ')
+const modes = (m: string[]) => [...new Set(m.map((x) => MODE_ABBR[x]).filter(Boolean))].join(' · ')
 </script>
 
 <template>
